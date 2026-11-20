@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#075985">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>My Expense OCR</title>
+<style>
+:root{--b:#075985;--b2:#0ea5e9;--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#64748b;--danger:#b91c1c;--ok:#15803d}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 22px}header h1{margin:0;font-size:24px}header p{margin:5px 0 0;opacity:.9}
+main{max-width:760px;margin:auto;padding:14px 14px 90px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.card{background:var(--card);border-radius:15px;padding:15px;box-shadow:0 4px 18px #0f172a12;margin-bottom:12px}.stat b{display:block;font-size:19px;margin-top:4px}.muted{color:var(--muted);font-size:12px}
+label{display:block;font-size:13px;font-weight:650;margin:12px 0 5px}input,select,textarea,button{font:inherit}input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:11px;background:#fff;color:var(--text)}textarea{min-height:70px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button,.btn{border:0;border-radius:11px;padding:12px 14px;font-weight:700;cursor:pointer}.primary{background:var(--b);color:white}.secondary{background:#e0f2fe;color:#075985}.danger{background:#fee2e2;color:var(--danger)}.full{width:100%}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions>*{flex:1}
+.receipt{width:100%;max-height:260px;object-fit:contain;background:#e2e8f0;border-radius:12px;margin-top:10px;display:none}.status{padding:9px;border-radius:9px;margin-top:9px;font-size:13px;display:none}.status.on{display:block;background:#eff6ff;color:#1d4ed8}.status.err{display:block;background:#fef2f2;color:#b91c1c}.detected{border-color:#22c55e;background:#f0fdf4}
+.tx{display:grid;grid-template-columns:1fr auto;gap:8px;padding:11px 0;border-bottom:1px solid #e2e8f0}.tx:last-child{border:0}.tx strong{display:block}.amount{font-weight:800}.tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid #e2e8f0;padding-bottom:env(safe-area-inset-bottom);z-index:5}.tabs button{flex:1;background:#fff;color:#64748b;border-radius:0;padding:12px 4px}.tabs button.active{color:var(--b);background:#f0f9ff}.view{display:none}.view.active{display:block}.budgetline{height:9px;background:#e2e8f0;border-radius:9px;overflow:hidden;margin-top:8px}.budgetline div{height:100%;background:var(--b2)}
+.small{font-size:12px}.right{text-align:right}@media(max-width:480px){.grid{grid-template-columns:1fr 1fr}.grid .stat:last-child{grid-column:span 2}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1>My Expense OCR</h1><p>Private expense tracker • MYR</p></header>
+<main>
+<section id="dashboard" class="view active">
+ <div class="grid">
+  <div class="card stat"><span class="muted">This month</span><b id="monthTotal">RM 0.00</b></div>
+  <div class="card stat"><span class="muted">Budget left</span><b id="budgetLeft">RM 0.00</b></div>
+  <div class="card stat"><span class="muted">Transactions</span><b id="txCount">0</b></div>
+ </div>
+ <div class="card"><b>Monthly budget</b><div class="row"><input id="budget" type="number" min="0" step="0.01" placeholder="e.g. 3000"><button class="secondary" id="saveBudget" type="button">Save budget</button></div><div class="budgetline"><div id="budgetBar" style="width:0%"></div></div></div>
+ <div class="card"><b>Recent expenses</b><div id="recent"></div></div>
+</section>
+<section id="add" class="view">
+ <div class="card">
+  <h2 style="margin-top:0">Scan receipt</h2>
+  <div class="actions"><label class="btn primary" style="margin:0;text-align:center">Take photo<input id="camera" type="file" accept="image/*" capture="environment" hidden></label><label class="btn secondary" style="margin:0;text-align:center">Choose image<input id="gallery" type="file" accept="image/*" hidden></label></div>
+  <img id="preview" class="receipt" alt="Receipt preview">
+  <div id="ocrStatus" class="status" aria-live="polite"></div>
+  <p class="muted">OCR runs in your browser. Always verify the detected merchant, date and final total.</p>
+ </div>
+ <form id="expenseForm" class="card">
+  <label>Merchant</label><input id="merchant" required placeholder="e.g. PETRONAS">
+  <div class="row"><div><label>Date</label><input id="date" type="date" required></div><div><label>Amount (RM)</label><input id="amount" type="number" min="0.01" step="0.01" required placeholder="0.00"></div></div>
+  <div class="row"><div><label>Category</label><select id="category"><option>Food</option><option>Petrol</option><option>Bills</option><option>Shopping</option><option>Family</option><option>Medical</option><option>Travel</option><option>Others</option></select></div><div><label>Payment</label><select id="payment"><option>Cash</option><option>Credit Card</option><option>Debit Card</option><option>eWallet</option><option>Bank Transfer</option></select></div></div>
+  <label>Notes</label><textarea id="notes" placeholder="Optional"></textarea>
+  <button class="primary full" type="submit">Save expense</button>
+ </form>
+</section>
+<section id="history" class="view"><div class="card"><h2 style="margin-top:0">Expense history</h2><div class="row"><input id="search" placeholder="Search merchant or category"><select id="monthFilter"><option value="">All months</option></select></div><div id="historyList"></div><div class="actions" style="margin-top:12px"><button id="exportCsv" class="secondary" type="button">Export CSV</button><button id="clearAll" class="danger" type="button">Delete all</button></div></div></section>
+</main>
+<nav class="tabs"><button class="active" data-view="dashboard" type="button">Dashboard</button><button data-view="add" type="button">+ Expense</button><button data-view="history" type="button">History</button></nav>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let expenses=JSON.parse(localStorage.getItem('expenses.v1')||'[]'); let receiptData='';
+const today=()=>new Date().toISOString().slice(0,10); $('#date').value=today(); $('#budget').value=localStorage.getItem('budget.v1')||'';
+function money(n){return new Intl.NumberFormat('en-MY',{style:'currency',currency:'MYR'}).format(Number(n)||0)}
+function save(){localStorage.setItem('expenses.v1',JSON.stringify(expenses));render()}
+function showView(id){$$('.view').forEach(x=>x.classList.toggle('active',x.id===id));$$('.tabs button').forEach(x=>x.classList.toggle('active',x.dataset.view===id));render()}
+$$('.tabs button').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+$('#saveBudget').addEventListener('click',()=>{localStorage.setItem('budget.v1',Math.max(0,Number($('#budget').value)||0));render()});
+function render(){
+ const ym=today().slice(0,7), current=expenses.filter(e=>e.date.startsWith(ym)), total=current.reduce((a,e)=>a+e.amount,0), budget=Number(localStorage.getItem('budget.v1'))||0;
+ $('#monthTotal').textContent=money(total);$('#budgetLeft').textContent=money(Math.max(0,budget-total));$('#txCount').textContent=current.length;$('#budgetBar').style.width=(budget?Math.min(100,total/budget*100):0)+'%';
+ const rows=[...expenses].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);$('#recent').innerHTML=rows.length?rows.map(txHtml).join(''):'<p class="muted">No expenses yet.</p>';
+ const months=[...new Set(expenses.map(e=>e.date.slice(0,7)))].sort().reverse(), old=$('#monthFilter').value;$('#monthFilter').innerHTML='<option value="">All months</option>'+months.map(m=>`<option>${m}</option>`).join('');$('#monthFilter').value=old;
+ renderHistory();
+}
+function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function txHtml(e){return `<div class="tx"><div><strong>${esc(e.merchant)}</strong><span class="muted">${esc(e.date)} • ${esc(e.category)} • ${esc(e.payment)}</span></div><div class="right"><span class="amount">${money(e.amount)}</span><br><button class="danger small" type="button" onclick="removeExpense('${e.id}')">Delete</button></div></div>`}
+window.removeExpense=id=>{if(confirm('Delete this expense?')){expenses=expenses.filter(e=>e.id!==id);save()}};
+function renderHistory(){let q=$('#search').value.toLowerCase(),m=$('#monthFilter').value;let a=[...expenses].filter(e=>(!m||e.date.startsWith(m))&&(!q||(e.merchant+' '+e.category+' '+e.notes).toLowerCase().includes(q))).sort((a,b)=>b.date.localeCompare(a.date));$('#historyList').innerHTML=a.length?a.map(txHtml).join(''):'<p class="muted">No matching expenses.</p>'}
+$('#search').addEventListener('input',renderHistory);$('#monthFilter').addEventListener('change',renderHistory);
+function guessFields(text){
+ const lines=text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+ const ignore=/receipt|invoice|tax|sst|tel|fax|reg|cashier|thank|welcome/i;
+ let merchant=(lines.find(x=>x.length>2&&x.length<45&&!ignore.test(x)&&!/^\d/.test(x))||lines[0]||'').replace(/[^\w &.'()-]/g,'').trim();
+ const datePatterns=[/(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})/,/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})/]; let date='';
+ for(const l of lines){let m=l.match(datePatterns[0]);if(m){date=`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;break}m=l.match(datePatterns[1]);if(m){date=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;break}}
+ const totalLines=lines.filter(l=>/(grand\s*total|amount\s*due|net\s*total|total)/i.test(l)&&!/(subtotal|sub total)/i.test(l)); let amounts=[];
+ for(const l of (totalLines.length?totalLines:lines)){for(const m of l.matchAll(/(?:RM|MYR)?\s*(\d{1,6}[.,]\d{2})\b/gi)){amounts.push(Number(m[1].replace(',','.')))}}
+ return {merchant,date,amount:amounts.length?Math.max(...amounts):''};
+}
+async function scan(file){
+ if(!file)return; if(file.size>12*1024*1024){setStatus('Image too large. Use a photo below 12 MB.',true);return}
+ const reader=new FileReader();reader.onload=()=>{receiptData=reader.result;$('#preview').src=receiptData;$('#preview').style.display='block'};reader.readAsDataURL(file);
+ if(!window.Tesseract){setStatus('OCR library could not load. Check your internet connection and try again.',true);return}
+ try{setStatus('Reading receipt… 0%');const result=await Tesseract.recognize(file,'eng',{logger:m=>{if(m.status==='recognizing text')setStatus(`Reading receipt… ${Math.round((m.progress||0)*100)}%`)}});const g=guessFields(result.data.text||'');
+  if(g.merchant){$('#merchant').value=g.merchant;$('#merchant').classList.add('detected')}if(g.date){$('#date').value=g.date;$('#date').classList.add('detected')}if(g.amount){$('#amount').value=g.amount.toFixed(2);$('#amount').classList.add('detected')}
+  setStatus(`Detected: ${g.merchant||'merchant not found'} • ${g.date||'date not found'} • ${g.amount?money(g.amount):'amount not found'}. Please verify.`);
+ }catch(e){setStatus('Could not read this receipt. Try a clearer, straight photo with good lighting.',true)}
+}
+function setStatus(t,err=false){let s=$('#ocrStatus');s.textContent=t;s.className='status '+(err?'err':'on')}
+$('#camera').addEventListener('change',e=>scan(e.target.files[0]));$('#gallery').addEventListener('change',e=>scan(e.target.files[0]));
+$('#expenseForm').addEventListener('submit',e=>{e.preventDefault();let amount=Number($('#amount').value);if(!amount||amount<=0)return alert('Enter a valid amount.');expenses.push({id:crypto.randomUUID?crypto.randomUUID():Date.now().toString(),merchant:$('#merchant').value.trim(),date:$('#date').value,amount,category:$('#category').value,payment:$('#payment').value,notes:$('#notes').value.trim(),receipt:receiptData});save();e.target.reset();$('#date').value=today();receiptData='';$('#preview').style.display='none';$('#ocrStatus').className='status';$$('.detected').forEach(x=>x.classList.remove('detected'));showView('dashboard')});
+$('#clearAll').addEventListener('click',()=>{if(confirm('Permanently delete every expense?')){expenses=[];save()}});
+$('#exportCsv').addEventListener('click',()=>{let rows=[['Date','Merchant','Category','Payment','Amount (MYR)','Notes'],...expenses.map(e=>[e.date,e.merchant,e.category,e.payment,e.amount.toFixed(2),e.notes])];let csv=rows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='expenses.csv';a.click();URL.revokeObjectURL(a.href)});
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});render();
+</script>
+</body></html>
